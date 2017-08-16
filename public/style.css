@@ -1,0 +1,84 @@
+.stadium{
+	border: 1px solid #ddd;
+	border-collapse: collapse;
+}
+.row-title{
+	padding: 2px 12px;
+	font-size: 12px;
+	text-transform: lowercase;
+	border-right: 1px solid #ddd;
+}
+.row:nth-child(2n){
+	background-color: #b8a9e9;
+}
+.row:nth-child(2n+1){
+	background-color: #d8cff4;
+}
+.u-place{
+	padding: 6px;
+	border: 1px solid #ddd;
+	text-align: center;
+	cursor: pointer;
+}
+.place-free, .place-reserved, .place-in-proccess{
+	width: 12px;
+	height: 12px;
+}
+div.place-free, div.place-reserved, div.place-in-proccess{
+	display: inline-block;
+}
+.place-free{
+	background-color: #a6f1a6;
+}
+.place-free.selected{
+	background-color: #369d36;
+	box-shadow: 0 0 3px #ddd;
+}
+.place-reserved{
+	background-color: #ffb0b0;
+}
+.place-in-proccess{
+	background-color: #f0f0f0;
+}
+.u-place.place-free:hover{
+	background-color: #369d36;
+}
+
+.flex-container{
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-around;
+}
+.total-summ{
+	font-size: 1.1em;
+	font-weight: bold;
+}
+
+.hide{
+	display: none;
+	visibility: hidden;
+	opacity: 0;
+}
+
+.text-center{
+	text-align: center;
+}
+
+.error-server-connection-lost > a{
+	color: white;
+	text-shadow: 0 0 1px #c11;
+}
+.error-server-connection-lost{
+	background-color: #d00;
+	color: white;
+	text-shadow: 0 0 1px #c11;
+	padding: 5px 0;
+	position: absolute;
+	width: 100%;
+	top: 0;
+	left: 0;
+	box-shadow: 0 3px 5px #aaa;
+	opacity: 0.8;
+}
