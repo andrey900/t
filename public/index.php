@@ -1,72 +1,155 @@
 <?php
+define('APP_DIR', realpath('..').DIRECTORY_SEPARATOR);
 
-?>
-<!DOCTYPE html>
-<html>
-<head>
-	<title>Station</title>
-	<link rel="stylesheet" type="text/css" href="/style.css">
-	<script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-	<script type="text/javascript" src="/main.js"></script>
-</head>
-<body>
+require APP_DIR.'vendor'.DIRECTORY_SEPARATOR.'autoload.php';
 
-<section class="error-server-connection-lost text-center hide">Соединение с сервером потеряно, <a href="javascript:window.location.reload();">обновите страницу</a></section>
-<div style="height:20px;"></div>
+use \Psr\Http\Message\ServerRequestInterface as Request;
+use \Psr\Http\Message\ResponseInterface as Response;
 
-<section class="stadium-info">
-<dir class="flex-container">
-<?php for( $s='A'; $s < 'D'; $s++ ){?>
-<div class="flex-row">
-<p class="text-center">Sector: <?=$s;?></p>
-<table class="stadium">
-<?php for( $i=1; $i < 11; $i++ ){?>
-	<tr class="row">
-	<td class="row-title">Ряд: <?php echo $i;?></td>
-	<?php for( $j=1; $j < 11; $j++ ){?>
-		<?if(rand(0,10) == $j):?>
-			<td class="u-place place-reserved" data-uid="<?="$s-$i-$j";?>" data-price="<?=(12-$i)*120;?>"><?php echo $j;?></td>
-		<?elseif(rand(0,10) == $j):?>
-			<td class="u-place place-in-proccess" data-uid="<?="$s-$i-$j";?>" data-price="<?=(12-$i)*120;?>"><?php echo $j;?></td>
-		<?else:?>
-			<td class="u-place place-free action--selectPlace" data-uid="<?="$s-$i-$j";?>" data-price="<?=(12-$i)*120;?>"><?php echo $j;?></td>
-		<?endif;?>
-	<?php }?>
-	</tr>
-<?php }?>
-</table>
-</div>
-<?}?>
-</dir>
+// Create and configure Slim app
+$config = [
+	'settings' => [
+	    'addContentLengthHeader' => false,
+	    'displayErrorDetails' => true,
+	    'db' => [
+			'host' => "localhost",
+			'user' => "user",
+			'pass' => "password",
+			'dbname' => "exampleapp"
+		]
+	]
+];
 
-<hr>
-<div>
-	<div><div class="place-free"></div> - Свободные места</div>
-	<div><div class="place-reserved"></div> - Зарезервированые места</div>
-	<div><div class="place-in-proccess"></div> - В процессе регистрации места</div>
-</div>
-</section>
+$app = new \Slim\App($config);
 
-<section class="reservation-info hide">
-	Выбранные места: <div class="data-result"></div>
-	Общая сумма: <div class="total-summ">0</div>
-	<button class="action--makeOrder">Забронировать</button>
-</section>
+$container = $app->getContainer();
 
-<section class="new-order hide">
-	<button class="action--cancelOrder">Вернутся</button>
-	<form>
-		Имя: 
-		<input type="text" name="name">
-		<br>
-		Телефон: 
-		<input type="text" name="phone">
-		<br>
-		На сумму: <span class="total-summ">0</span>
-		<br>
-		<input type="submit" name="order" value="Забронировать">
-	</form>
-</section>
+$container['db'] = function ($c) {
+    $db = $c['settings']['db'];
+    $pdo = new PDO("mysql:host=" . $db['host'] . ";dbname=" . $db['dbname'],
+        $db['user'], $db['pass']);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    return $pdo;
+};
 
-</body>
-</html>
+$container['view'] = new \Slim\Views\PhpRenderer("../templates/");
+
+$app->get('/', function (Request $request, Response $response, $args) {
+    $response = $this->view->render($response, "tickets.phtml", ["tickets" => $tickets]);
+    return $response;
+})->setName("home");
+
+$app->group('/api/v_1', function () {
+    $this->get('/', function ($request, $response, $args) {
+    	$data = [
+    		'get' => '/api/v1.0/get-match/[0-9]+',
+    		'post' => '/api/v1.0/reservation/[0-9]+',
+    		'post' => '/api/v1.0/reservation-order/[0-9]+'
+    	];
+    	return $response->withJson($data);
+    })->setName('api-allow-method');
+
+    $this->get('/get-match/{id:[0-9]+}', function ($request, $response, $args) {
+    	$reservation = [];
+    	$reserved = [];
+
+    	$data = file_get_contents(APP_DIR.'reservation.json');
+    	if( $data )
+    		$reservation = json_decode($data);
+    	
+    	$data = file_get_contents(APP_DIR.'reserved.json');
+    	if( $data )
+    		$reserved = json_decode($data);
+
+    	$result = [
+			'reserved' => $reserved,
+			'reservation' => $reservation
+		];
+
+		return $response->withJson($result);
+    })->setName('api-get-match');
+
+    $this->post('/reservation/{id:[0-9]+}', function ($request, $response, $args) {
+    	$parsedBody = $request->getParsedBody();
+
+    	if( $parsedBody['places'] ){
+	    	$reservation = file_get_contents(APP_DIR.'reservation.json');
+
+	    	if( !$reservation ){
+	    		$reservation = [];
+	    	} else {
+	    		$reservation = json_decode($reservation);
+	    	}
+
+    		foreach ($parsedBody['places'] as $place) {
+    			$reservation[] = $place;
+    		}
+    		
+    		file_put_contents(APP_DIR.'reservation.json', json_encode((array)$reservation));
+    	}
+
+    	return $response->withJson(['status' => 'success']);
+    })->setName('api-add-reservation');
+
+    $this->delete('/reservation/{id:[0-9]+}', function ($request, $response, $args) {
+    	$reservation = file_get_contents(APP_DIR.'reservation.json');
+    	if( !$reservation ){
+    		$reservation = [];
+    	} else {
+    		$reservation = json_decode($reservation);
+    	}
+
+    	$parsedBody = $request->getParsedBody();
+    	if( $parsedBody['places'] ){
+    		foreach ($parsedBody['places'] as $place) {
+    			if( ($k = array_search($place, $reservation)) !== false )
+    				unset($reservation[$k]);
+    		}
+    		$reservation = array_values($reservation);
+    	}
+
+    	file_put_contents(APP_DIR.'reservation.json', json_encode((array)$reservation));
+
+    	return $response->withJson(['status' => 'success', 'app' => $parsedBody]);
+    })->setName('api-delete-reservation');
+
+    $this->post('/reservation-order/{id:[0-9]+}', function ($request, $response, $args) {
+    	$reserved = file_get_contents(APP_DIR.'reserved.json');
+    	if( !$reserved ){
+    		$reserved = [];
+    	} else {
+    		$reserved = json_decode($reserved);
+    	}
+
+    	$parsedBody = $request->getParsedBody();
+    	if( $parsedBody['places'] ){
+    		foreach ($parsedBody['places'] as $place) {
+    			$reserved[] = $place;
+    		}
+    	}
+    	file_put_contents(APP_DIR.'reserved.json', json_encode((array)$reserved));
+
+    	$reservation = file_get_contents(APP_DIR.'reservation.json');
+    	if( !$reservation ){
+    		$reservation = [];
+    	} else {
+    		$reservation = json_decode($reservation);
+    	}
+
+    	if( $parsedBody['places'] ){
+    		foreach ($parsedBody['places'] as $place) {
+    			if( ($k = array_search($place, $reservation)) !== false )
+    				unset($reservation[$k]);
+    		}
+    		$reservation = array_values($reservation);
+    	}
+
+    	file_put_contents(APP_DIR.'reservation.json', json_encode((array)$reservation));
+
+    	return $response->withJson(['status' => 'success']);
+    })->setName('api-reservation-order');
+});
+
+// Run app
+$app->run();

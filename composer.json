@@ -1,0 +1,8 @@
+{
+    "name": "andrey/t",
+    "require": {
+        "slim/slim": "^3.8",
+        "illuminate/database": "^5.4",
+        "slim/php-view": "^2.2"
+    }
+}
